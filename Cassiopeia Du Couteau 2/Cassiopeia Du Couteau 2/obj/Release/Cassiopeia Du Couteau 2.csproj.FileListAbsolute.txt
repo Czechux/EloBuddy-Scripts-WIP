@@ -1,0 +1,12 @@
+C:\Users\user\Documents\Visual Studio 2017\Projects\Cassiopeia Du Couteau 2\Cassiopeia Du Couteau 2\bin\Release\Cassiopeia Du Couteau 2.exe.config
+C:\Users\user\Documents\Visual Studio 2017\Projects\Cassiopeia Du Couteau 2\Cassiopeia Du Couteau 2\bin\Release\Cassiopeia Du Couteau 2.exe
+C:\Users\user\Documents\Visual Studio 2017\Projects\Cassiopeia Du Couteau 2\Cassiopeia Du Couteau 2\bin\Release\Cassiopeia Du Couteau 2.pdb
+C:\Users\user\Documents\Visual Studio 2017\Projects\Cassiopeia Du Couteau 2\Cassiopeia Du Couteau 2\bin\Release\EloBuddy.dll
+C:\Users\user\Documents\Visual Studio 2017\Projects\Cassiopeia Du Couteau 2\Cassiopeia Du Couteau 2\bin\Release\EloBuddy.SDK.dll
+C:\Users\user\Documents\Visual Studio 2017\Projects\Cassiopeia Du Couteau 2\Cassiopeia Du Couteau 2\bin\Release\SharpDX.dll
+C:\Users\user\Documents\Visual Studio 2017\Projects\Cassiopeia Du Couteau 2\Cassiopeia Du Couteau 2\bin\Release\SharpDX.Direct3D9.dll
+C:\Users\user\Documents\Visual Studio 2017\Projects\Cassiopeia Du Couteau 2\Cassiopeia Du Couteau 2\bin\Release\Newtonsoft.Json.dll
+C:\Users\user\Documents\Visual Studio 2017\Projects\Cassiopeia Du Couteau 2\Cassiopeia Du Couteau 2\bin\Release\EloBuddy.Sandbox.dll
+C:\Users\user\Documents\Visual Studio 2017\Projects\Cassiopeia Du Couteau 2\Cassiopeia Du Couteau 2\obj\Release\Cassiopeia Du Couteau 2.csprojResolveAssemblyReference.cache
+C:\Users\user\Documents\Visual Studio 2017\Projects\Cassiopeia Du Couteau 2\Cassiopeia Du Couteau 2\obj\Release\Cassiopeia Du Couteau 2.exe
+C:\Users\user\Documents\Visual Studio 2017\Projects\Cassiopeia Du Couteau 2\Cassiopeia Du Couteau 2\obj\Release\Cassiopeia Du Couteau 2.pdb
