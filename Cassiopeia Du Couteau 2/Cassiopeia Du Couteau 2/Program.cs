@@ -24,7 +24,7 @@ namespace Cassiopeia_Du_Couteau_2
         public static Spell.Targeted _E;
         public static Spell.Skillshot _R;
 
-        private static Menu StartMenu, ComboMenu, DebugC, DrawingsMenu;
+        private static Menu StartMenu, ComboMenu, LastHitM, DebugC, DrawingsMenu, ClearMenu;
 
         static void Main(string[] args)
         {
@@ -38,15 +38,10 @@ namespace Cassiopeia_Du_Couteau_2
                 return;
             }
             Chat.Print("Cassiopeia Du Couteau - Loaded", System.Drawing.Color.Crimson);
-
-           
             _Q = new Spell.Skillshot(SpellSlot.Q, 750, SkillShotType.Circular, 400, int.MaxValue, 130);
             _W = new Spell.Skillshot(SpellSlot.W, 800, SkillShotType.Circular, 250, 250, 160);
             _E = new Spell.Targeted(SpellSlot.E, 700);
             _R = new Spell.Skillshot(SpellSlot.R, 800, SkillShotType.Cone, 250, 250, 80);
-
-
-
             StartMenu = MainMenu.AddMenu("Cassio", "Cassio");
             ComboMenu = StartMenu.AddSubMenu("Combo Settings", "Combo Settings");
             DrawingsMenu = StartMenu.AddSubMenu("Draw", "Draw");
@@ -56,10 +51,10 @@ namespace Cassiopeia_Du_Couteau_2
             ComboMenu.Add("DrawStatus", new CheckBox("Draw Current Orbwalker mode ? [BETA]"));
             ComboMenu.AddLabel("If you wanna use drawing orbwalker mode you need 16:9 resoultion,");
             ComboMenu.AddLabel("In future i will add customizable position.");
-            ComboMenu.Add("DisableAA", new CheckBox("Disable AA in Combo for faster Kite"));
+            ComboMenu.Add("DisableAA", new CheckBox("Disable AA in Combo for faster Kite", false));
             ComboMenu.AddLabel("Q Spell Settings");
             ComboMenu.Add("UseQ", new CheckBox("Use [Q]"));
-            ComboMenu.Add("UseS", new CheckBox("Use [Q] Mana Saver?"));
+            ComboMenu.Add("UseS", new CheckBox("Use [Q] Mana Saver?", false));
             ComboMenu.Add("UseQI", new CheckBox("Use always [Q] if enemy is immobile?"));
             ComboMenu.Add("UseQ2", new CheckBox("Try to hit =< 2 champions if can ?"));
             ComboMenu.Add("UseQPok", new CheckBox("Use always [Q] if enemy is killable by Poison?"));
@@ -67,10 +62,16 @@ namespace Cassiopeia_Du_Couteau_2
 
             ComboMenu.AddLabel("W Spell Settings");
             ComboMenu.Add("UseW", new CheckBox("Use [W]"));
+            ComboMenu.Add("UseW2", new CheckBox("Try to hit =< 2 champions if can ?"));
 
             ComboMenu.Add("UseE", new CheckBox("Use [E]"));
+            ComboMenu.Add("UseES", new CheckBox("Use [E] casting speedup ?"));
+            ComboMenu.Add("UseEI", new CheckBox("Use [E] always if enemy is immobile?", false));
 
             ComboMenu.Add("UseR", new CheckBox("Use [R]"));
+            ComboMenu.Add("UseRFace", new CheckBox("Use [R] only on facing enemy ?"));
+            ComboMenu.Add("UseRG", new CheckBox("Use [R] use minimum enemys for R ?"));
+            ComboMenu.Add("UseRGs", new Slider("Minimum people for R", 1, 1, 5));
 
             DrawingsMenu.AddGroupLabel("Drawing Settings");
             DrawingsMenu.AddLabel("Tick for enable/disable spell drawings");
@@ -96,7 +97,7 @@ namespace Cassiopeia_Du_Couteau_2
             var buff = target.Buffs.OrderByDescending(x => x.EndTime).FirstOrDefault(x => x.Type == BuffType.Poison && x.IsActive && x.IsValid);
             return buff == null || time > (buff.EndTime - Game.Time) * 1000f;
         }
-    
+
 
         private static void Game_OnUpdate(EventArgs args)
         {
@@ -260,7 +261,7 @@ namespace Cassiopeia_Du_Couteau_2
         }
 
 
-            private static void Combo()
+        private static void Combo()
         {
 
             var HighP = ComboMenu["PredHit"].Cast<ComboBox>().SelectedIndex == 0;
@@ -268,7 +269,6 @@ namespace Cassiopeia_Du_Couteau_2
             var LowP = ComboMenu["PredHit"].Cast<ComboBox>().SelectedIndex == 2;
             var target = TargetSelector.GetTarget(_Q.Range, DamageType.Magical);
             var targetQ2 = TargetSelector.GetTarget(_Q.Range, DamageType.Magical);
-            var HighHP = HighP;
             if (target == null)
             {
                 return;
@@ -288,18 +288,26 @@ namespace Cassiopeia_Du_Couteau_2
                     if (!target.IsInRange(_Player, _E.Range))
                         return;
                     {
-                        if (_E.IsReady())
+                        if (_E.IsReady() && ComboMenu["UseES"].Cast<CheckBox>().CurrentValue)
                         {
 
                             _E.Cast(target);
+                            Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
                             if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
                             {
                                 Chat.Print("Casting E with speedup");
                                 Console.WriteLine("Game.Time + Casting E with Speedup");
-                                Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
                             }
-                            //    Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
-                            //   Player.IssueOrder(GameObjectOrder.AttackTo)
+
+                        }
+                        if (_E.IsReady() && !ComboMenu["UseES"].Cast<CheckBox>().CurrentValue)
+                        {
+                            _E.Cast(target);
+                            if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                            {
+                                Chat.Print("Casting E with normal");
+                                Console.WriteLine(Game.Time + "Casting E with Speedup");
+                            }
                         }
                     }
                 }
@@ -318,7 +326,6 @@ namespace Cassiopeia_Du_Couteau_2
 
                                 Chat.Print("Casting W with HIGH pred ");
                                 Console.WriteLine("Casting W with HIGH pred ");
-                                Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
                             }
                         }
                     }
@@ -338,14 +345,18 @@ namespace Cassiopeia_Du_Couteau_2
                             var center = getAllTargets.Aggregate(Vector3.Zero, (current, x) => current + x.ServerPosition) / getAllTargets.Count;
                             if (!center.IsZero)
                             {
-                                _Q.Cast(target);
-                                if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                var Qpred = _Q.GetPrediction(target);
+                                if (Qpred.HitChance >= HitChance.High && target.IsValidTarget(_Q.Range))
                                 {
+                                    _Q.Cast(target);
+                                    if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                    {
 
-                                    Chat.Print("FOUND MORE THAN 2 PEOPLE FOR Q ");
-                                    Console.WriteLine("FOUND MORE THAN 2 PEOPLE FOR Q");
-                                    // Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                        Chat.Print("FOUND MORE THAN 2 PEOPLE FOR Q ");
+                                        Console.WriteLine("FOUND MORE THAN 2 PEOPLE FOR Q");
+                                    }
                                 }
+
                             }
 
                         }
@@ -366,92 +377,116 @@ namespace Cassiopeia_Du_Couteau_2
                             var center = getAllTargets.Aggregate(Vector3.Zero, (current, x) => current + x.ServerPosition) / getAllTargets.Count;
                             if (!center.IsZero)
                             {
-                                _Q.Cast(target);
-                                if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                var Qpred = _Q.GetPrediction(target);
+                                if (Qpred.HitChance >= HitChance.High && target.IsValidTarget(_Q.Range))
                                 {
-
-                                    Chat.Print("FOUND ONLY 1 POEPLE FOR Q");
-                                    Console.WriteLine("FOUND ONLY 1 POEPLE FOR Q");
-                                    // Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
-                                }
-                            }
-
-                        }
-                    }
-
-                }
-
-                if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue)
-
-                {
-
-                    if (!target.IsInRange(_Player, _Q.Range))
-                        return;
-                    {
-                        if (_Q.IsReady() && ComboMenu["UseS"].Cast<CheckBox>().CurrentValue)
-                        {
-                            var Qpred = _Q.GetPrediction(target);
-                            if (Qpred.HitChance >= HitChance.High && target.IsValidTarget(_Q.Range))
-                            {
-                                if (!target.PoisonWillExpire(250))
-                                    return;
-                                {
-                                    _Q.Cast(target.ServerPosition);
+                                    _Q.Cast(target);
                                     if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
                                     {
 
-                                        Chat.Print("Casting Q with HIGH pred saver ");
-                                        Console.WriteLine("Casting Q with HIGH pred saver ");
-                                        Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                        Chat.Print("FOUND 1 PEOPLE FOR Q ");
+                                        Console.WriteLine("FOUND 1 PEOPLE FOR Q");
                                     }
                                 }
+
                             }
-
-
-
-
-
                         }
 
                     }
                 }
-
-                if (!ComboMenu["UseS"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && !ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
-
-                {
-                    if (_Q.IsReady())
+                    if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue)
                     {
 
-                        var Qpred = _Q.GetPrediction(target);
-                        if (Qpred.HitChance >= HitChance.High && target.IsValidTarget(_Q.Range))
+                        if (!target.IsInRange(_Player, _Q.Range))
+                            return;
                         {
-                            Core.DelayAction(() => _Q.Cast(target), 100);
-                            if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                            if (_Q.IsReady() && ComboMenu["UseS"].Cast<CheckBox>().CurrentValue)
                             {
+                                var Qpred = _Q.GetPrediction(target);
+                                if (Qpred.HitChance >= HitChance.High && target.IsValidTarget(_Q.Range))
+                                {
+                                    if (!target.PoisonWillExpire(250))
+                                        return;
+                                    {
+                                        _Q.Cast(target.ServerPosition);
+                                        if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                        {
 
-                                Chat.Print("Casting Q with HIGH pred ");
-                                Console.WriteLine("Casting Q with HIGH pred ");
-                                Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                            Chat.Print("Casting Q with HIGH pred saver ");
+                                            Console.WriteLine("Casting Q with HIGH pred saver ");
+                                            Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                        }
+                                    }
+                                }
+
                             }
+
                         }
                     }
 
-
-
-                }
-                if (ComboMenu["UseR"].Cast<CheckBox>().CurrentValue)
-                {
-                    if (_R.IsReady())
+                    if (!ComboMenu["UseS"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && !ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
                     {
-                        if (target.IsFacing(_Player) && target.IsInRange(_Player, _R.Range))
+                        if (_Q.IsReady())
+                        {
+
+                            var Qpred = _Q.GetPrediction(target);
+                            if (Qpred.HitChance >= HitChance.High && target.IsValidTarget(_Q.Range))
+                            {
+                                Core.DelayAction(() => _Q.Cast(target), 100);
+                                if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                {
+
+                                    Chat.Print("Casting Q with HIGH pred ");
+                                    Console.WriteLine("Casting Q with HIGH pred ");
+                                    Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                }
+                            }
+                        }
+
+
+
+                    }
+
+                    if (ComboMenu["UseR"].Cast<CheckBox>().CurrentValue && ComboMenu["UseRG"].Cast<CheckBox>().CurrentValue)
+                    {
+                    var Enemys = EntityManager.Heroes.Enemies.Where(x => x.IsInRange(_Player.Position, _R.Range - 25));
+
+                    if (Enemys != null)
+                    {
+                        if (Enemys.Count() >= ComboMenu["UseRGs"].Cast<Slider>().CurrentValue && target.IsFacing(_Player) && ComboMenu["UseRFace"].Cast<CheckBox>().CurrentValue)
                         {
                             Player.IssueOrder(GameObjectOrder.MoveTo, target);
-                            _R.Cast(target.ServerPosition);
+                            _R.Cast(target);
+                        }
+                        if (Enemys.Count() >= ComboMenu["UseRGs"].Cast<Slider>().CurrentValue && !ComboMenu["UseRFace"].Cast<CheckBox>().CurrentValue)
+                        {
+                            Player.IssueOrder(GameObjectOrder.MoveTo, target);
+                            _R.Cast(target);
                         }
                     }
-                }
-            }
 
+                    }
+
+                    if (ComboMenu["UseR"].Cast<CheckBox>().CurrentValue)
+                    {
+
+                        if (_R.IsReady())
+                        {
+                            if (target.IsFacing(_Player) && target.IsInRange(_Player, _R.Range) && ComboMenu["UseRFace"].Cast<CheckBox>().CurrentValue)
+                            {
+                                Player.IssueOrder(GameObjectOrder.MoveTo, target);
+                                _R.Cast(target.ServerPosition);
+                            }
+                        }
+                     if (target.IsInRange(_Player, _R.Range) && !ComboMenu["UseRFace"].Cast<CheckBox>().CurrentValue)
+                     {
+                        Player.IssueOrder(GameObjectOrder.MoveTo, target);
+                        _R.Cast(target.ServerPosition);
+                     }
+
+                    }
+                
+            }
 
             if (MediumP)
             {
@@ -470,8 +505,7 @@ namespace Cassiopeia_Du_Couteau_2
                                 Console.WriteLine("Game.Time + Casting E with Speedup");
                                 Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
                             }
-                            //    Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
-                            //   Player.IssueOrder(GameObjectOrder.AttackTo)
+
                         }
                     }
                 }
@@ -484,316 +518,333 @@ namespace Cassiopeia_Du_Couteau_2
                         var Wpred = _W.GetPrediction(target);
                         if (Wpred.HitChance >= HitChance.Medium && target.IsValidTarget(_W.Range))
                         {
-                            _W.Cast(target.ServerPosition);
-                            if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                            if (ComboMenu["UseW2"].Cast<CheckBox>().CurrentValue)
                             {
+                                var Enemys = EntityManager.Heroes.Enemies.Where(x => x.IsInRange(_Player.Position, _W.Range));
+                                if (Enemys != null)
+                                {
+                                    if (Enemys.Count() >= 2)
+                                    {
+                                        _W.Cast(target.ServerPosition);
+                                        if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                        {
 
-                                Chat.Print("Casting W with HIGH pred ");
-                                Console.WriteLine("Casting W with HIGH pred ");
-                                Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                            Chat.Print("Casting W Found more than >= 2 People ");
+                                            Console.WriteLine("Casting W Found more than >= 2 People");
+                                        }
+                                    }
+
+                                }
                             }
-                        }
-                    }
-
-                }
-
-                if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
-                {
-                    if (_Q.IsReady())
-                    {
-                        var canHitMoreThanOneTarget =
-                          EntityManager.Heroes.Enemies.OrderByDescending(x => x.CountEnemyChampionsInRange(_Q.Width))
-                          .FirstOrDefault(x => x.IsValidTarget(_Q.Range) && x.CountEnemyChampionsInRange(_Q.Width) > 1);
-                        if (canHitMoreThanOneTarget != null)
-                        {
-                            var getAllTargets = EntityManager.Heroes.Enemies.FindAll(x => x.IsValidTarget() && x.IsInRange(canHitMoreThanOneTarget, _Q.Width));
-                            var center = getAllTargets.Aggregate(Vector3.Zero, (current, x) => current + x.ServerPosition) / getAllTargets.Count;
-                            if (!center.IsZero)
+                            if (!ComboMenu["UseW2"].Cast<CheckBox>().CurrentValue)
                             {
-                                _Q.Cast(target);
+                                _W.Cast(target);
                                 if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
                                 {
 
-                                    Chat.Print("FOUND MORE THAN 2 PEOPLE FOR Q ");
-                                    Console.WriteLine("FOUND MORE THAN 2 PEOPLE FOR Q");
-                                    // Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                    Chat.Print("Casting W ");
+                                    Console.WriteLine("Casting W");
                                 }
                             }
-
                         }
+
                     }
 
-                }
-
-                if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
-                {
-                    if (_Q.IsReady())
+                    if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
                     {
-                        var canHitMoreThanOneTarget =
-                          EntityManager.Heroes.Enemies.OrderByDescending(x => x.CountEnemyChampionsInRange(_Q.Width))
-                          .FirstOrDefault(x => x.IsValidTarget(_Q.Range) && x.CountEnemyChampionsInRange(_Q.Width) >= 1);
-                        if (canHitMoreThanOneTarget != null)
+                        if (_Q.IsReady())
                         {
-                            var getAllTargets = EntityManager.Heroes.Enemies.FindAll(x => x.IsValidTarget() && x.IsInRange(canHitMoreThanOneTarget, _Q.Width));
-                            var center = getAllTargets.Aggregate(Vector3.Zero, (current, x) => current + x.ServerPosition) / getAllTargets.Count;
-                            if (!center.IsZero)
+                            var canHitMoreThanOneTarget =
+                              EntityManager.Heroes.Enemies.OrderByDescending(x => x.CountEnemyChampionsInRange(_Q.Width))
+                              .FirstOrDefault(x => x.IsValidTarget(_Q.Range) && x.CountEnemyChampionsInRange(_Q.Width) > 1);
+                            if (canHitMoreThanOneTarget != null)
                             {
-                                _Q.Cast(target);
-                                if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                var getAllTargets = EntityManager.Heroes.Enemies.FindAll(x => x.IsValidTarget() && x.IsInRange(canHitMoreThanOneTarget, _Q.Width));
+                                var center = getAllTargets.Aggregate(Vector3.Zero, (current, x) => current + x.ServerPosition) / getAllTargets.Count;
+                                if (!center.IsZero)
                                 {
+                                    _Q.Cast(target);
+                                    if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                    {
 
-                                    Chat.Print("FOUND ONLY 1 POEPLE FOR Q");
-                                    Console.WriteLine("FOUND ONLY 1 POEPLE FOR Q");
-                                    // Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                        Chat.Print("FOUND MORE THAN 2 PEOPLE FOR Q ");
+                                        Console.WriteLine("FOUND MORE THAN 2 PEOPLE FOR Q");
+                                    }
                                 }
+
+                            }
+                        }
+
+                    }
+
+                    if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
+                    {
+                        if (_Q.IsReady())
+                        {
+                            var canHitMoreThanOneTarget =
+                              EntityManager.Heroes.Enemies.OrderByDescending(x => x.CountEnemyChampionsInRange(_Q.Width))
+                              .FirstOrDefault(x => x.IsValidTarget(_Q.Range) && x.CountEnemyChampionsInRange(_Q.Width) >= 1);
+                            if (canHitMoreThanOneTarget != null)
+                            {
+                                var getAllTargets = EntityManager.Heroes.Enemies.FindAll(x => x.IsValidTarget() && x.IsInRange(canHitMoreThanOneTarget, _Q.Width));
+                                var center = getAllTargets.Aggregate(Vector3.Zero, (current, x) => current + x.ServerPosition) / getAllTargets.Count;
+                                if (!center.IsZero)
+                                {
+                                    _Q.Cast(target);
+                                    if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                    {
+
+                                        Chat.Print("FOUND ONLY 1 POEPLE FOR Q");
+                                        Console.WriteLine("FOUND ONLY 1 POEPLE FOR Q");
+                                        // Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                    }
+                                }
+
+                            }
+                        }
+
+                    }
+
+                    if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQS"].Cast<CheckBox>().CurrentValue)
+
+                    {
+
+                        if (!target.IsInRange(_Player, _Q.Range))
+                            return;
+                        {
+                            if (_Q.IsReady() && ComboMenu["UseS"].Cast<CheckBox>().CurrentValue)
+                            {
+                                var Qpred = _Q.GetPrediction(target);
+                                if (Qpred.HitChance >= HitChance.Medium && target.IsValidTarget(_Q.Range))
+                                {
+                                    if (!target.PoisonWillExpire(250))
+                                        return;
+                                    {
+                                        _Q.Cast(target.ServerPosition);
+                                        if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                        {
+
+                                            Chat.Print("Casting Q with HIGH pred saver ");
+                                            Console.WriteLine("Casting Q with HIGH pred saver ");
+                                            Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                        }
+                                    }
+                                }
+
                             }
 
                         }
                     }
 
-                }
+                    if (!ComboMenu["UseS"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && !ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
 
-                if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue)
-
-                {
-
-                    if (!target.IsInRange(_Player, _Q.Range))
-                        return;
                     {
-                        if (_Q.IsReady() && ComboMenu["UseS"].Cast<CheckBox>().CurrentValue)
+                        if (_Q.IsReady())
                         {
+
                             var Qpred = _Q.GetPrediction(target);
                             if (Qpred.HitChance >= HitChance.Medium && target.IsValidTarget(_Q.Range))
                             {
-                                if (!target.PoisonWillExpire(250))
-                                    return;
+                                Core.DelayAction(() => _Q.Cast(target), 100);
+                                if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
                                 {
-                                    _Q.Cast(target.ServerPosition);
-                                    if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
-                                    {
 
-                                        Chat.Print("Casting Q with HIGH pred saver ");
-                                        Console.WriteLine("Casting Q with HIGH pred saver ");
-                                        Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
-                                    }
+                                    Chat.Print("Casting Q with HIGH pred ");
+                                    Console.WriteLine("Casting Q with HIGH pred ");
+                                    Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
                                 }
                             }
-
-
-
-
-
                         }
 
+
+
                     }
-                }
-
-                if (!ComboMenu["UseS"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && !ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
-
-                {
-                    if (_Q.IsReady())
+                    if (ComboMenu["UseR"].Cast<CheckBox>().CurrentValue)
                     {
-
-                        var Qpred = _Q.GetPrediction(target);
-                        if (Qpred.HitChance >= HitChance.Medium && target.IsValidTarget(_Q.Range))
+                        if (_R.IsReady())
                         {
-                            Core.DelayAction(() => _Q.Cast(target), 100);
-                            if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                            if (target.IsFacing(_Player) && target.IsInRange(_Player, _R.Range))
                             {
-
-                                Chat.Print("Casting Q with HIGH pred ");
-                                Console.WriteLine("Casting Q with HIGH pred ");
-                                Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                Player.IssueOrder(GameObjectOrder.MoveTo, target);
+                                _R.Cast(target.ServerPosition);
                             }
-                        }
-                    }
-
-
-
-                }
-                if (ComboMenu["UseR"].Cast<CheckBox>().CurrentValue)
-                {
-                    if (_R.IsReady())
-                    {
-                        if (target.IsFacing(_Player) && target.IsInRange(_Player, _R.Range))
-                        {
-                            Player.IssueOrder(GameObjectOrder.MoveTo, target);
-                            _R.Cast(target.ServerPosition);
                         }
                     }
                 }
             }
-            if (LowP)
-            {
-                if (ComboMenu["UseE"].Cast<CheckBox>().CurrentValue)
+                if (LowP)
                 {
-                    if (!target.IsInRange(_Player, _E.Range))
-                        return;
+                    if (ComboMenu["UseE"].Cast<CheckBox>().CurrentValue)
                     {
-                        if (_E.IsReady())
+                        if (!target.IsInRange(_Player, _E.Range))
+                            return;
                         {
-
-                            _E.Cast(target);
-                            if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
-                            {
-                                Chat.Print("Casting E with speedup");
-                                Console.WriteLine("Game.Time + Casting E with Speedup");
-                                Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
-                            }
-                            //    Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
-                            //   Player.IssueOrder(GameObjectOrder.AttackTo)
-                        }
-                    }
-                }
-
-                if (ComboMenu["UseW"].Cast<CheckBox>().CurrentValue)
-                {
-                    if (_W.IsReady() && _Player.Distance(target) > 500)
-                    {
-
-                        var Wpred = _W.GetPrediction(target);
-                        if (Wpred.HitChance >= HitChance.Low && target.IsValidTarget(_W.Range))
-                        {
-                            _W.Cast(target.ServerPosition);
-                            if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                            if (_E.IsReady())
                             {
 
-                                Chat.Print("Casting W with HIGH pred ");
-                                Console.WriteLine("Casting W with HIGH pred ");
-                                Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                _E.Cast(target);
+                                if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                {
+                                    Chat.Print("Casting E with speedup");
+                                    Console.WriteLine("Game.Time + Casting E with Speedup");
+                                    Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                }
+                                //    Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                //   Player.IssueOrder(GameObjectOrder.AttackTo)
                             }
                         }
                     }
 
-                }
-
-                if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
-                {
-                    if (_Q.IsReady())
+                    if (ComboMenu["UseW"].Cast<CheckBox>().CurrentValue)
                     {
-                        var canHitMoreThanOneTarget =
-                          EntityManager.Heroes.Enemies.OrderByDescending(x => x.CountEnemyChampionsInRange(_Q.Width))
-                          .FirstOrDefault(x => x.IsValidTarget(_Q.Range) && x.CountEnemyChampionsInRange(_Q.Width) > 1);
-                        if (canHitMoreThanOneTarget != null)
+                        if (_W.IsReady() && _Player.Distance(target) > 500)
                         {
-                            var getAllTargets = EntityManager.Heroes.Enemies.FindAll(x => x.IsValidTarget() && x.IsInRange(canHitMoreThanOneTarget, _Q.Width));
-                            var center = getAllTargets.Aggregate(Vector3.Zero, (current, x) => current + x.ServerPosition) / getAllTargets.Count;
-                            if (!center.IsZero)
+
+                            var Wpred = _W.GetPrediction(target);
+                            if (Wpred.HitChance >= HitChance.Low && target.IsValidTarget(_W.Range))
                             {
-                                _Q.Cast(target);
+                                _W.Cast(target.ServerPosition);
                                 if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
                                 {
 
-                                    Chat.Print("FOUND MORE THAN 2 PEOPLE FOR Q ");
-                                    Console.WriteLine("FOUND MORE THAN 2 PEOPLE FOR Q");
-                                    // Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                    Chat.Print("Casting W with HIGH pred ");
+                                    Console.WriteLine("Casting W with HIGH pred ");
+                                    Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
                                 }
                             }
-
                         }
+
                     }
 
-                }
-
-                if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
-                {
-                    if (_Q.IsReady())
+                    if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
                     {
-                        var canHitMoreThanOneTarget =
-                          EntityManager.Heroes.Enemies.OrderByDescending(x => x.CountEnemyChampionsInRange(_Q.Width))
-                          .FirstOrDefault(x => x.IsValidTarget(_Q.Range) && x.CountEnemyChampionsInRange(_Q.Width) >= 1);
-                        if (canHitMoreThanOneTarget != null)
+                        if (_Q.IsReady())
                         {
-                            var getAllTargets = EntityManager.Heroes.Enemies.FindAll(x => x.IsValidTarget() && x.IsInRange(canHitMoreThanOneTarget, _Q.Width));
-                            var center = getAllTargets.Aggregate(Vector3.Zero, (current, x) => current + x.ServerPosition) / getAllTargets.Count;
-                            if (!center.IsZero)
+                            var canHitMoreThanOneTarget =
+                              EntityManager.Heroes.Enemies.OrderByDescending(x => x.CountEnemyChampionsInRange(_Q.Width))
+                              .FirstOrDefault(x => x.IsValidTarget(_Q.Range) && x.CountEnemyChampionsInRange(_Q.Width) > 1);
+                            if (canHitMoreThanOneTarget != null)
                             {
-                                _Q.Cast(target);
-                                if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                var getAllTargets = EntityManager.Heroes.Enemies.FindAll(x => x.IsValidTarget() && x.IsInRange(canHitMoreThanOneTarget, _Q.Width));
+                                var center = getAllTargets.Aggregate(Vector3.Zero, (current, x) => current + x.ServerPosition) / getAllTargets.Count;
+                                if (!center.IsZero)
                                 {
+                                    _Q.Cast(target);
+                                    if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                    {
 
-                                    Chat.Print("FOUND ONLY 1 POEPLE FOR Q");
-                                    Console.WriteLine("FOUND ONLY 1 POEPLE FOR Q");
-                                    // Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                        Chat.Print("FOUND MORE THAN 2 PEOPLE FOR Q ");
+                                        Console.WriteLine("FOUND MORE THAN 2 PEOPLE FOR Q");
+                                        // Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                    }
                                 }
+
+                            }
+                        }
+
+                    }
+
+                    if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
+                    {
+                        if (_Q.IsReady())
+                        {
+                            var canHitMoreThanOneTarget =
+                              EntityManager.Heroes.Enemies.OrderByDescending(x => x.CountEnemyChampionsInRange(_Q.Width))
+                              .FirstOrDefault(x => x.IsValidTarget(_Q.Range) && x.CountEnemyChampionsInRange(_Q.Width) >= 1);
+                            if (canHitMoreThanOneTarget != null)
+                            {
+                                var getAllTargets = EntityManager.Heroes.Enemies.FindAll(x => x.IsValidTarget() && x.IsInRange(canHitMoreThanOneTarget, _Q.Width));
+                                var center = getAllTargets.Aggregate(Vector3.Zero, (current, x) => current + x.ServerPosition) / getAllTargets.Count;
+                                if (!center.IsZero)
+                                {
+                                    _Q.Cast(target);
+                                    if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                    {
+
+                                        Chat.Print("FOUND ONLY 1 POEPLE FOR Q");
+                                        Console.WriteLine("FOUND ONLY 1 POEPLE FOR Q");
+                                        // Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                    }
+                                }
+
+                            }
+                        }
+
+                    }
+
+                    if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue)
+
+                    {
+
+                        if (!target.IsInRange(_Player, _Q.Range))
+                            return;
+                        {
+                            if (_Q.IsReady() && ComboMenu["UseS"].Cast<CheckBox>().CurrentValue)
+                            {
+                                var Qpred = _Q.GetPrediction(target);
+                                if (Qpred.HitChance >= HitChance.Low && target.IsValidTarget(_Q.Range))
+                                {
+                                    if (!target.PoisonWillExpire(250))
+                                        return;
+                                    {
+                                        _Q.Cast(target.ServerPosition);
+                                        if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                        {
+
+                                            Chat.Print("Casting Q with HIGH pred saver ");
+                                            Console.WriteLine("Casting Q with HIGH pred saver ");
+                                            Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                        }
+                                    }
+                                }
+
+
+
+
+
                             }
 
                         }
                     }
 
-                }
+                    if (!ComboMenu["UseS"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && !ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
 
-                if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue)
-
-                {
-
-                    if (!target.IsInRange(_Player, _Q.Range))
-                        return;
                     {
-                        if (_Q.IsReady() && ComboMenu["UseS"].Cast<CheckBox>().CurrentValue)
+                        if (_Q.IsReady())
                         {
+
                             var Qpred = _Q.GetPrediction(target);
                             if (Qpred.HitChance >= HitChance.Low && target.IsValidTarget(_Q.Range))
                             {
-                                if (!target.PoisonWillExpire(250))
-                                    return;
+                                Core.DelayAction(() => _Q.Cast(target), 100);
+                                if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
                                 {
-                                    _Q.Cast(target.ServerPosition);
-                                    if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
-                                    {
 
-                                        Chat.Print("Casting Q with HIGH pred saver ");
-                                        Console.WriteLine("Casting Q with HIGH pred saver ");
-                                        Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
-                                    }
+                                    Chat.Print("Casting Q with HIGH pred ");
+                                    Console.WriteLine("Casting Q with HIGH pred ");
+                                    Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
                                 }
                             }
-
-
-
-
-
                         }
 
+
+
                     }
-                }
-
-                if (!ComboMenu["UseS"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && !ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
-
-                {
-                    if (_Q.IsReady())
+                    if (ComboMenu["UseR"].Cast<CheckBox>().CurrentValue)
                     {
-
-                        var Qpred = _Q.GetPrediction(target);
-                        if (Qpred.HitChance >= HitChance.Low && target.IsValidTarget(_Q.Range))
+                        if (_R.IsReady())
                         {
-                            Core.DelayAction(() => _Q.Cast(target), 100);
-                            if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                            if (target.IsFacing(_Player) && target.IsInRange(_Player, _R.Range))
                             {
-
-                                Chat.Print("Casting Q with HIGH pred ");
-                                Console.WriteLine("Casting Q with HIGH pred ");
-                                Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
+                                Player.IssueOrder(GameObjectOrder.MoveTo, target);
+                                _R.Cast(target.ServerPosition);
                             }
                         }
                     }
-
-
-
                 }
-                if (ComboMenu["UseR"].Cast<CheckBox>().CurrentValue)
-                {
-                    if (_R.IsReady())
-                    {
-                        if (target.IsFacing(_Player) && target.IsInRange(_Player, _R.Range))
-                        {
-                            Player.IssueOrder(GameObjectOrder.MoveTo, target);
-                            _R.Cast(target.ServerPosition);
-                        }
-                    }
-                }
-            }
+
         }
+
         private static void ImmobileQ()
 
         {
@@ -822,8 +873,8 @@ namespace Cassiopeia_Du_Couteau_2
                 }
             }
 
-
         }
 
-    }
+    }    
+ 
 }
