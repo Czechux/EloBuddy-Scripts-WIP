@@ -1,6 +1,4 @@
-﻿using System;
-using System.Linq;
-using EloBuddy;
+﻿using EloBuddy;
 using EloBuddy.SDK;
 using EloBuddy.SDK.Enumerations;
 using EloBuddy.SDK.Events;
@@ -8,7 +6,10 @@ using EloBuddy.SDK.Menu;
 using EloBuddy.SDK.Menu.Values;
 using EloBuddy.SDK.Rendering;
 using SharpDX;
-using static SharpDX.Color;
+using System;
+using System.Linq;
+using Color = SharpDX.Color;
+
 
 namespace Cassiopeia_Du_Couteau_2
 {
@@ -18,6 +19,10 @@ namespace Cassiopeia_Du_Couteau_2
         {
             get { return ObjectManager.Player; }
         }
+
+       // public static ColorBGRA Red { get; private set; }
+     //   public static ColorBGRA Cyan { get; private set; }
+
         //tutaj spelle
         public static Spell.Skillshot _Q;
         public static Spell.Skillshot _W;
@@ -82,8 +87,7 @@ namespace Cassiopeia_Du_Couteau_2
             DrawingsMenu.Add("DE", new CheckBox("- Draw [E] range"));
             DrawingsMenu.AddSeparator(0);
             DrawingsMenu.Add("DR", new CheckBox("- Draw [R] range"));
-            DrawingsMenu.AddSeparator(0);
-            DrawingsMenu.Add("DI", new CheckBox("- Draw Is Killable"));
+ 
 
             DebugC.Add("Debug", new CheckBox("Debug Console+Chat"));
             DebugC.Add("DrawStatus1", new CheckBox("Debug Curret Orbawlker mode"));
@@ -114,19 +118,14 @@ namespace Cassiopeia_Du_Couteau_2
 
         private static void Drawing_OnDraw(EventArgs args)
         {
-            var DM = DrawingsMenu["DM"].Cast<CheckBox>().CurrentValue;
-            var target = TargetSelector.GetTarget(_Q.Range, DamageType.Physical);
             var Combo = Orbwalker.ActiveModesFlags.HasFlag(Orbwalker.ActiveModes.Combo);
             var LastHit = Orbwalker.ActiveModesFlags.HasFlag(Orbwalker.ActiveModes.LastHit);
             var LaneClear = Orbwalker.ActiveModesFlags.HasFlag(Orbwalker.ActiveModes.LaneClear);
             var Harass = Orbwalker.ActiveModesFlags.HasFlag(Orbwalker.ActiveModes.Harass);
 
-
-
-            if (DebugC["DrawStatus1"].Cast<CheckBox>().CurrentValue && ComboMenu["DrawStatus"].Cast<CheckBox>().CurrentValue)
+            if (DebugC["DrawStatus1"].Cast<CheckBox>().CurrentValue)
 
             {
-
                 if (Harass && !Combo && LaneClear && LastHit)
                 {
                     Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: Harass ]");
@@ -213,51 +212,6 @@ namespace Cassiopeia_Du_Couteau_2
                     Drawing.DrawText(Drawing.Width * 0.72f, Drawing.Height * 0.89f, System.Drawing.Color.White, "[ Orbwalker Mode: None ]");
                 }
             }
-
-
-            if (DrawingsMenu["DQ"].Cast<CheckBox>().CurrentValue && _Q.IsLearned)
-
-            {
-                if (!_Q.IsReady())
-                    Circle.Draw(Red, _Q.Range, _Player);
-
-                else if (_Q.IsReady())
-                {
-                    Circle.Draw(Cyan, _Q.Range, _Player);
-                }
-
-
-            }
-            if (DrawingsMenu["DW"].Cast<CheckBox>().CurrentValue && _W.IsLearned)
-            {
-                if (!_W.IsReady())
-                    Circle.Draw(Red, _W.Range, _Player);
-
-                else if (_W.IsReady())
-                {
-                    Circle.Draw(Cyan, _W.Range, _Player);
-                }
-            }
-            if (DrawingsMenu["DE"].Cast<CheckBox>().CurrentValue && _E.IsLearned)
-            {
-                if (!_E.IsReady())
-                    Circle.Draw(Red, _E.Range, _Player);
-
-                else if (_E.IsReady())
-                {
-                    Circle.Draw(Red, _E.Range, _Player);
-                }
-            }
-            if (DrawingsMenu["DR"].Cast<CheckBox>().CurrentValue && _R.IsLearned)
-            {
-                if (!_R.IsReady())
-                    Circle.Draw(Red, _R.Range, _Player);
-
-                else if (_R.IsReady())
-                {
-                    Circle.Draw(Cyan, _R.Range, _Player);
-                }
-            }
         }
 
 
@@ -273,11 +227,15 @@ namespace Cassiopeia_Du_Couteau_2
             {
                 return;
             }
-            if (ComboMenu["DisableAA"].Cast<CheckBox>().CurrentValue)
+            if (ComboMenu["DisableAA"].Cast<CheckBox>().CurrentValue && Orbwalker.ActiveModesFlags.HasFlag(Orbwalker.ActiveModes.Combo))
             {
                 Orbwalker.DisableAttacking = true;
             }
-            if (!ComboMenu["DisableAA"].Cast<CheckBox>().CurrentValue)
+            if (!ComboMenu["DisableAA"].Cast<CheckBox>().CurrentValue && Orbwalker.ActiveModesFlags.HasFlag(Orbwalker.ActiveModes.Combo))
+            {
+                Orbwalker.DisableAttacking = false;
+            }
+            if (!Orbwalker.ActiveModesFlags.HasFlag(Orbwalker.ActiveModes.Combo))
             {
                 Orbwalker.DisableAttacking = false;
             }
@@ -320,16 +278,37 @@ namespace Cassiopeia_Du_Couteau_2
                         var Wpred = _W.GetPrediction(target);
                         if (Wpred.HitChance >= HitChance.High && target.IsValidTarget(_W.Range))
                         {
-                            _W.Cast(target.ServerPosition);
-                            if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                            if (ComboMenu["UseW2"].Cast<CheckBox>().CurrentValue)
                             {
+                                var Enemys = EntityManager.Heroes.Enemies.Where(x => x.IsInRange(_Player.Position, _W.Range));
+                                if (Enemys != null)
+                                {
+                                    if (Enemys.Count() >= 2)
+                                    {
+                                        _W.Cast(target.ServerPosition);
+                                        if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                        {
 
-                                Chat.Print("Casting W with HIGH pred ");
-                                Console.WriteLine("Casting W with HIGH pred ");
+                                            Chat.Print("Casting W Found more than >= 2 People ");
+                                            Console.WriteLine("Casting W Found more than >= 2 People");
+                                        }
+                                    }
+
+                                }
+                            }
+                            if (!ComboMenu["UseW2"].Cast<CheckBox>().CurrentValue)
+                            {
+                                _W.Cast(target);
+                                if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                {
+
+                                    Chat.Print("Casting W ");
+                                    Console.WriteLine("Casting W");
+                                }
                             }
                         }
-                    }
 
+                    }
                 }
 
                 if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
@@ -338,7 +317,7 @@ namespace Cassiopeia_Du_Couteau_2
                     {
                         var canHitMoreThanOneTarget =
                           EntityManager.Heroes.Enemies.OrderByDescending(x => x.CountEnemyChampionsInRange(_Q.Width))
-                          .FirstOrDefault(x => x.IsValidTarget(_Q.Range) && x.CountEnemyChampionsInRange(_Q.Width) > 1);
+                          .FirstOrDefault(x => x.IsValidTarget(_Q.Range) && x.CountEnemyChampionsInRange(_Q.Width) >= 2);
                         if (canHitMoreThanOneTarget != null)
                         {
                             var getAllTargets = EntityManager.Heroes.Enemies.FindAll(x => x.IsValidTarget() && x.IsInRange(canHitMoreThanOneTarget, _Q.Width));
@@ -447,10 +426,9 @@ namespace Cassiopeia_Du_Couteau_2
 
                     }
 
-                    if (ComboMenu["UseR"].Cast<CheckBox>().CurrentValue && ComboMenu["UseRG"].Cast<CheckBox>().CurrentValue)
+                    if (ComboMenu["UseR"].Cast<CheckBox>().CurrentValue && ComboMenu["UseRG"].Cast<CheckBox>().CurrentValue && _R.IsReady())
                     {
                     var Enemys = EntityManager.Heroes.Enemies.Where(x => x.IsInRange(_Player.Position, _R.Range - 25));
-
                     if (Enemys != null)
                     {
                         if (Enemys.Count() >= ComboMenu["UseRGs"].Cast<Slider>().CurrentValue && target.IsFacing(_Player) && ComboMenu["UseRFace"].Cast<CheckBox>().CurrentValue)
@@ -467,9 +445,8 @@ namespace Cassiopeia_Du_Couteau_2
 
                     }
 
-                    if (ComboMenu["UseR"].Cast<CheckBox>().CurrentValue)
+                    if (ComboMenu["UseR"].Cast<CheckBox>().CurrentValue && _R.IsReady())
                     {
-
                         if (_R.IsReady())
                         {
                             if (target.IsFacing(_Player) && target.IsInRange(_Player, _R.Range) && ComboMenu["UseRFace"].Cast<CheckBox>().CurrentValue)
@@ -549,7 +526,7 @@ namespace Cassiopeia_Du_Couteau_2
                         }
 
                     }
-
+                }
                     if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
                     {
                         if (_Q.IsReady())
@@ -606,38 +583,36 @@ namespace Cassiopeia_Du_Couteau_2
                     }
 
                     if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQS"].Cast<CheckBox>().CurrentValue)
-
                     {
-
                         if (!target.IsInRange(_Player, _Q.Range))
                             return;
                         {
-                            if (_Q.IsReady() && ComboMenu["UseS"].Cast<CheckBox>().CurrentValue)
-                            {
-                                var Qpred = _Q.GetPrediction(target);
-                                if (Qpred.HitChance >= HitChance.Medium && target.IsValidTarget(_Q.Range))
-                                {
-                                    if (!target.PoisonWillExpire(250))
-                                        return;
-                                    {
-                                        _Q.Cast(target.ServerPosition);
-                                        if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
-                                        {
 
-                                            Chat.Print("Casting Q with HIGH pred saver ");
-                                            Console.WriteLine("Casting Q with HIGH pred saver ");
-                                            Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
-                                        }
+                        if (_Q.IsReady() && ComboMenu["UseS"].Cast<CheckBox>().CurrentValue)
+                        {
+                            var Qpred = _Q.GetPrediction(target);
+                            if (Qpred.HitChance >= HitChance.Medium && target.IsValidTarget(_Q.Range))
+                            {
+                                if (!target.PoisonWillExpire(250))
+                                    return;
+                                {
+                                    _Q.Cast(target.ServerPosition);
+                                    if (DebugC["Debug"].Cast<CheckBox>().CurrentValue)
+                                    {
+
+                                        Chat.Print("Casting Q with HIGH pred saver ");
+                                        Console.WriteLine("Casting Q with HIGH pred saver ");
+                                        Player.IssueOrder(GameObjectOrder.MoveTo, Game.CursorPos);
                                     }
                                 }
-
                             }
+
+                        }
 
                         }
                     }
 
                     if (!ComboMenu["UseS"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && !ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
-
                     {
                         if (_Q.IsReady())
                         {
@@ -670,7 +645,9 @@ namespace Cassiopeia_Du_Couteau_2
                             }
                         }
                     }
-                }
+
+
+
             }
                 if (LowP)
                 {
@@ -773,7 +750,6 @@ namespace Cassiopeia_Du_Couteau_2
                     }
 
                     if (ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue)
-
                     {
 
                         if (!target.IsInRange(_Player, _Q.Range))
@@ -808,7 +784,6 @@ namespace Cassiopeia_Du_Couteau_2
                     }
 
                     if (!ComboMenu["UseS"].Cast<CheckBox>().CurrentValue && ComboMenu["UseQ"].Cast<CheckBox>().CurrentValue && !ComboMenu["UseQ2"].Cast<CheckBox>().CurrentValue)
-
                     {
                         if (_Q.IsReady())
                         {
